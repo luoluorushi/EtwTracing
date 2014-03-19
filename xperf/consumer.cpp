@@ -591,11 +591,11 @@ void CConsumer::OutputResult()
 		}
 	}
 
-	fprintf(fp,"Count         Size         Name\r\n");
+	fprintf(fp,"Count        Size        Name\r\n");
 
 	for(MAP_FILEFAULTS_ITE iteFaults = m_mapFileFaults.begin(); iteFaults != m_mapFileFaults.end(); ++iteFaults)
 	{
-		fprintf(fp, "%-12d,-12d,%s\r\n", iteFaults->second.faultCount,iteFaults->second.readSize,iteFaults->first);
+		fwprintf(fp, L"%-12d,%-12d,%s\r\n", iteFaults->second.faultCount,iteFaults->second.readSize,iteFaults->first.c_str());
 	}
 
 	fclose(fp);
