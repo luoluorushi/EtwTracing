@@ -45,8 +45,10 @@ typedef struct _hardfaults
 
 typedef struct _fileHardfaults
 {
+	UINT64 fileObj;
 	UINT64 readSize;
 	UINT32 faultCount;
+	tstring fileName;
 	std::vector<CHardFaults> vec_Fault;
 }CFileHardFaults;
 
@@ -125,8 +127,8 @@ private:
 	std::vector<CHardFaults> m_vecHardFaults;
 	typedef std::vector<CHardFaults>::iterator VEC_HARDFAULTS_ITE;
 
-	std::map<tstring, CFileHardFaults> m_mapFileFaults;
-	typedef std::map<tstring, CFileHardFaults>::iterator MAP_FILEFAULTS_ITE;
+	std::vector<CFileHardFaults> m_vecFileFaults;
+	typedef std::vector<CFileHardFaults>::iterator VEC_FILEFAULTS_ITE;
 
 
 };
