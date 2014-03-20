@@ -107,6 +107,7 @@ private:
 	std::vector<DWORD> m_vecThreadId;
 	std::vector<fileIoInfo> m_vecFileIoInfo;
 	std::map<UINT64,tstring> m_mapFileObjectToFileName;
+	std::map<UINT64,tstring> m_mapFileCreate;
 	DWORD m_processId;
 	HANDLE m_processHandle;
 	UINT32 m_stackMatchCount;

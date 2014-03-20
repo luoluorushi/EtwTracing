@@ -285,11 +285,24 @@ void WINAPI CConsumer::ProcessEvent(PEVENT_TRACE pEvent)
 // 				CopyMemory(&fileObjectPtr, pEventData + 3*MOF_POINTERSIZE, MOF_POINTERSIZE);
 // 			}
 
-			if(64 == eventType)
+			if(64 == eventType)		//创建文件
 			{
 				int lenth = wcslen((wchar_t*) (pEventData + 12 + MOF_POINTERSIZE*3));
 				CopyMemory(fileName, pEventData + 12 + MOF_POINTERSIZE*3, lenth*sizeof(wchar_t));
 				CopyMemory(&fileObjectPtr, pEventData + 2*MOF_POINTERSIZE, MOF_POINTERSIZE);
+				m_mapFileCreate[fileObjectPtr] = fileName;
+			}
+
+			if(67 == eventType || 68 == eventType)		//文件读写
+			{
+				UINT64 fileCreateObj;
+				CopyMemory(&fileCreateObj, pEventData + 8 + 2*MOF_POINTERSIZE, MOF_POINTERSIZE);
+				CopyMemory(&fileObjectPtr, pEventData + 8 + 3*MOF_POINTERSIZE, MOF_POINTERSIZE);
+				MAP_FILEOBJ_ITE iteCreate = m_mapFileCreate.find(fileCreateObj);
+				if(iteCreate != m_mapFileCreate.end())
+				{
+					CopyMemory(fileName, iteCreate->second.c_str(), iteCreate->second.length() * sizeof(wchar_t));
+				}
 			}
 
 			if(72 == eventType || 77 == eventType)
