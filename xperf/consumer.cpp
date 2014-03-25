@@ -126,7 +126,7 @@ BOOL CConsumer::ConsumerProcessTrace(TRACEHANDLE hTrace, DWORD processId, LPWSTR
 
 ULONG WINAPI CConsumer::ProcessBuffer(PEVENT_TRACE_LOGFILE pBuffer)
 {
-	return m_isContinueTrace;
+	return TRUE;
 }
 
 void WINAPI CConsumer::ProcessEvent(PEVENT_TRACE pEvent)
@@ -147,7 +147,7 @@ void WINAPI CConsumer::ProcessEvent(PEVENT_TRACE pEvent)
 	UINT64 highResResponseTime = 0; 
 	DWORD threadId = 0;
 
-	if(!m_isContinueTrace)
+	if(!m_isContinueTrace && !IsEqualGUID(pEvent->Header.Guid, FileIoGuid))
 		return ;
 
 	UINT32 instrumentPointer = 0;
@@ -198,7 +198,6 @@ void WINAPI CConsumer::ProcessEvent(PEVENT_TRACE pEvent)
 						hardFaultsTemp.fileOffset = readOffset;
 						hardFaultsTemp.vtAddress = vtAddr;
 						hardFaultsTemp.byteCount = byteCount;
-						m_vecHardFaults.push_back(hardFaultsTemp);
 
 						MAP_FILEOBJ_ITE mapIte = m_mapFileObjectToFileName.begin();
 						for(; mapIte != m_mapFileObjectToFileName.end() ; ++mapIte)
@@ -208,14 +207,14 @@ void WINAPI CConsumer::ProcessEvent(PEVENT_TRACE pEvent)
 						}
 						if(mapIte == m_mapFileObjectToFileName.end())
 						{
-							wprintf(L"Hard Faults Not Found File\r\n");
+							m_vecHardFaults.push_back(hardFaultsTemp);
 						}
 						else
 						{
 							VEC_FILEFAULTS_ITE iteFaults;
 							for(iteFaults = m_vecFileFaults.begin(); iteFaults != m_vecFileFaults.end(); ++iteFaults)
 							{
-								if(iteFaults->fileObj == mapIte->first && wcscmp(iteFaults->fileName.c_str(), mapIte->second.c_str()) == 0 )
+								if(wcscmp(iteFaults->fileName.c_str(), mapIte->second.c_str()) == 0 )
 									break;
 							}
 							if(iteFaults != m_vecFileFaults.end())
@@ -308,7 +307,7 @@ void WINAPI CConsumer::ProcessEvent(PEVENT_TRACE pEvent)
 			UINT64 fileObjectPtr = 0;
 			wchar_t fileName[MAX_PATH] = {0};
 			
-			if( 0 == eventType || 32 == eventType || 35 == eventType)
+			if( 0 == eventType || 32 == eventType || 35 == eventType || 36 == eventType)
 			{
 				int lenth = wcslen((wchar_t*)(pEventData+MOF_POINTERSIZE));
 				CopyMemory(fileName, pEventData+MOF_POINTERSIZE, lenth*sizeof(wchar_t));
@@ -318,116 +317,64 @@ void WINAPI CConsumer::ProcessEvent(PEVENT_TRACE pEvent)
 				m_mapFileObjectToFileName[fileObjectPtr] = fileName;
 			}
 
-// 			if(69 == eventType || 70 == eventType || 71 == eventType || 74 == eventType || 75 == eventType)
-// 			{
-// 				CopyMemory(&fileObjectPtr, pEventData + 3*MOF_POINTERSIZE, MOF_POINTERSIZE);
-// 			}
-
-			if(64 == eventType)		//创建文件
-			{
-				int lenth = wcslen((wchar_t*) (pEventData + 12 + MOF_POINTERSIZE*3));
-				CopyMemory(fileName, pEventData + 12 + MOF_POINTERSIZE*3, lenth*sizeof(wchar_t));
-				CopyMemory(&fileObjectPtr, pEventData + 2*MOF_POINTERSIZE, MOF_POINTERSIZE);
-			}
-
-			if(67 == eventType || 68 == eventType)		//文件读写
-			{
-				UINT64 fileCreateObj;
-				CopyMemory(&fileCreateObj, pEventData + 8 + 2*MOF_POINTERSIZE, MOF_POINTERSIZE);
-				CopyMemory(&fileObjectPtr, pEventData + 8 + 3*MOF_POINTERSIZE, MOF_POINTERSIZE);
-				MAP_FILEOBJ_ITE iteCreate = m_mapFileCreate.find(fileCreateObj);
-				if(iteCreate != m_mapFileCreate.end())
-				{
-					CopyMemory(fileName, iteCreate->second.c_str(), iteCreate->second.length() * sizeof(wchar_t));
-					MAP_FILEOBJ_ITE ite = m_mapFileObjectToFileName.begin();
-					for(; ite != m_mapFileObjectToFileName.end(); ++ite)
-					{
-						if(ite->first == fileObjectPtr)
-						{
-							break;
-						}
-					}
-					if(ite == m_mapFileObjectToFileName.end())
-					{
-						m_mapFileObjectToFileName[fileObjectPtr] = fileName;
-					}
-				}
-				
-			}
-
-			if(65 == eventType || 66 == eventType || 73 == eventType)
-			{
-				UINT64 fileCreateObj;
-				CopyMemory(&fileCreateObj, pEventData + 2*MOF_POINTERSIZE, MOF_POINTERSIZE);
-				CopyMemory(&fileObjectPtr, pEventData + 3*MOF_POINTERSIZE, MOF_POINTERSIZE);
-				MAP_FILEOBJ_ITE iteCreate = m_mapFileCreate.find(fileCreateObj);
-				if(iteCreate != m_mapFileCreate.end())
-				{
-					CopyMemory(fileName, iteCreate->second.c_str(), iteCreate->second.length() * sizeof(wchar_t));
-					MAP_FILEOBJ_ITE ite = m_mapFileObjectToFileName.begin();
-					for(; ite != m_mapFileObjectToFileName.end(); ++ite)
-					{
-						if(ite->first == fileObjectPtr)
-						{
-							break;
-						}
-					}
-					if(ite == m_mapFileObjectToFileName.end())
-					{
-						m_mapFileObjectToFileName[fileObjectPtr] = fileName;
-					}
-				}
-			}
-
-			if(69 == eventType || 70 == eventType || 71 == eventType || 74 == eventType || 75 == eventType)
-			{
-				UINT64 fileCreateObj;
-				CopyMemory(&fileCreateObj, pEventData + 2*MOF_POINTERSIZE, MOF_POINTERSIZE);
-				CopyMemory(&fileObjectPtr, pEventData + 3*MOF_POINTERSIZE, MOF_POINTERSIZE);
-				MAP_FILEOBJ_ITE iteCreate = m_mapFileCreate.find(fileCreateObj);
-				if(iteCreate != m_mapFileCreate.end())
-				{
-					CopyMemory(fileName, iteCreate->second.c_str(), iteCreate->second.length() * sizeof(wchar_t));
-					MAP_FILEOBJ_ITE ite = m_mapFileObjectToFileName.begin();
-					for(; ite != m_mapFileObjectToFileName.end(); ++ite)
-					{
-						if(ite->first == fileObjectPtr)
-						{
-							break;
-						}
-					}
-					if(ite == m_mapFileObjectToFileName.end())
-					{
-						m_mapFileObjectToFileName[fileObjectPtr] = fileName;
-					}
-				}
-			}
-
-			if(72 == eventType || 77 == eventType)
-			{
-// 				int lenth = wcslen((wchar_t*) (pEventData+8 + 5*MOF_POINTERSIZE));
-// 				CopyMemory(fileName, pEventData+8 + 5*MOF_POINTERSIZE, lenth*sizeof(wchar_t));
-				UINT64 fileCreateObj;
-				CopyMemory(&fileCreateObj, pEventData+2*MOF_POINTERSIZE, MOF_POINTERSIZE);
-				CopyMemory(&fileObjectPtr,pEventData+3*MOF_POINTERSIZE,MOF_POINTERSIZE);
-				MAP_FILEOBJ_ITE iteCreate = m_mapFileCreate.find(fileCreateObj);
-				if(iteCreate != m_mapFileCreate.end())
-				{
-					CopyMemory(fileName, iteCreate->second.c_str(), iteCreate->second.length() * sizeof(wchar_t));
-					MAP_FILEOBJ_ITE ite = m_mapFileObjectToFileName.begin();
-					for(; ite != m_mapFileObjectToFileName.end(); ++ite)
-					{
-						if(ite->first == fileObjectPtr)
-						{
-							break;
-						}
-					}
-					if(ite == m_mapFileObjectToFileName.end())
-					{
-						m_mapFileObjectToFileName[fileObjectPtr] = fileName;
-					}
-				}
-			}
+//  			if(64 == eventType)		//创建文件
+//  			{
+//  				int lenth = wcslen((wchar_t*) (pEventData + 12 + MOF_POINTERSIZE*3));
+//  				CopyMemory(fileName, pEventData + 12 + MOF_POINTERSIZE*3, lenth*sizeof(wchar_t));
+//  				CopyMemory(&fileObjectPtr, pEventData + 2*MOF_POINTERSIZE, MOF_POINTERSIZE);
+// 				m_mapFileCreate[fileObjectPtr] = fileName;
+//  			}
+//  
+//  			if(67 == eventType || 68 == eventType)		//文件读写
+//  			{
+//  				UINT64 fileCreateObj;
+//  				CopyMemory(&fileCreateObj, pEventData + 8 + 2*MOF_POINTERSIZE, MOF_POINTERSIZE);
+//  				CopyMemory(&fileObjectPtr, pEventData + 8 + 3*MOF_POINTERSIZE, MOF_POINTERSIZE);
+//  				MAP_FILEOBJ_ITE iteCreate = m_mapFileCreate.find(fileCreateObj);
+//  				if(iteCreate != m_mapFileCreate.end())
+//  				{
+//  					m_mapFileObjectToFileName[fileObjectPtr] = iteCreate->second;
+//  				}
+//  				
+//  			}
+//  
+//  			if(65 == eventType || 66 == eventType || 73 == eventType)
+//  			{
+//  				UINT64 fileCreateObj;
+//  				CopyMemory(&fileCreateObj, pEventData + 2*MOF_POINTERSIZE, MOF_POINTERSIZE);
+//  				CopyMemory(&fileObjectPtr, pEventData + 3*MOF_POINTERSIZE, MOF_POINTERSIZE);
+//  				MAP_FILEOBJ_ITE iteCreate = m_mapFileCreate.find(fileCreateObj);
+//  				if(iteCreate != m_mapFileCreate.end())
+//  				{
+//  					m_mapFileObjectToFileName[fileObjectPtr] = iteCreate->second;
+//  				}
+//  			}
+//  
+//  			if(69 == eventType || 70 == eventType || 71 == eventType || 74 == eventType || 75 == eventType)
+//  			{
+//  				UINT64 fileCreateObj;
+//  				CopyMemory(&fileCreateObj, pEventData + 2*MOF_POINTERSIZE, MOF_POINTERSIZE);
+//  				CopyMemory(&fileObjectPtr, pEventData + 3*MOF_POINTERSIZE, MOF_POINTERSIZE);
+//  				MAP_FILEOBJ_ITE iteCreate = m_mapFileCreate.find(fileCreateObj);
+//  				if(iteCreate != m_mapFileCreate.end())
+//  				{
+//  					m_mapFileObjectToFileName[fileObjectPtr] = iteCreate->second;
+//  				}
+//  			}
+//  
+//  			if(72 == eventType || 77 == eventType)
+//  			{
+//  // 				int lenth = wcslen((wchar_t*) (pEventData+8 + 5*MOF_POINTERSIZE));
+//  // 				CopyMemory(fileName, pEventData+8 + 5*MOF_POINTERSIZE, lenth*sizeof(wchar_t));
+//  				UINT64 fileCreateObj;
+//  				CopyMemory(&fileCreateObj, pEventData+2*MOF_POINTERSIZE, MOF_POINTERSIZE);
+//  				CopyMemory(&fileObjectPtr,pEventData+3*MOF_POINTERSIZE,MOF_POINTERSIZE);
+//  				MAP_FILEOBJ_ITE iteCreate = m_mapFileCreate.find(fileCreateObj);
+//  				if(iteCreate != m_mapFileCreate.end())
+//  				{
+//  					m_mapFileObjectToFileName[fileObjectPtr] = iteCreate->second;
+//  				}
+//  			}
 		}
 
 		if(IsEqualGUID(pEvent->Header.Guid,MyCategoryGuid))
@@ -537,7 +484,12 @@ void WINAPI CConsumer::ProcessEvent(PEVENT_TRACE pEvent)
 
 							if(mapIte == m_mapFileObjectToFileName.end())
 							{
-								wprintf(L"Not Found FileObj!!!!!!\r\n");
+								fileIoInfo fileIo;
+								ZeroMemory(&fileIo,sizeof(fileIo));
+								fileIo.fileIoSize = diskReadTransfer;
+								fileIo.fileObjectPtr = fileObjectPtr;
+								fileIo.fileIoTime = highResResponseTime;
+								m_vecNotFindPtrFile.push_back(fileIo);
 							}
 
 							else
@@ -649,11 +601,47 @@ void CConsumer::OutputResult()
 	{
 		fprintf(fp, "Start Time Used=%I64u ms\r\n", m_startTimeUsed.QuadPart / 10000);
 		fprintf(fp, "Io Time Used=%I64u\r\n", m_totalReadTime);
-		fprintf(fp, "Cpu Time Used=%I64u ms\r\n",(UINT64)(GetCpuWeight()/100*m_startTimeUsed.QuadPart/10000));
+		fprintf(fp, "Cpu Time Used=%I64u ms, weight =%f\r\n",(UINT64)(GetCpuWeight()/100*m_startTimeUsed.QuadPart/10000), GetCpuWeight());
 		fprintf(fp, "-----------------------华丽的分割线---------------------------\r\n\r\n");
+
+		for(std::vector<fileIoInfo>::iterator ite = m_vecNotFindPtrFile.begin(); ite != m_vecNotFindPtrFile.end(); ++ite)
+		{
+			MAP_FILEOBJ_ITE mapIte = m_mapFileObjectToFileName.begin();
+			for(; mapIte != m_mapFileObjectToFileName.end() ; ++mapIte)
+			{
+				if(mapIte->first == ite->fileObjectPtr)
+					break;
+			}
+			if(mapIte == m_mapFileObjectToFileName.end())
+			{
+				wprintf(L"FileIo Not Found File\r\n");
+				continue;
+			}
+			VEC_FILEINFO_ITE ite2 = m_vecFileIoInfo.begin();
+			for(ite2 = m_vecFileIoInfo.begin(); ite2 != m_vecFileIoInfo.end(); ++ite2)
+			{
+				if(wcscmp(ite2->fileName.c_str(), mapIte->second.c_str())== 0)
+				{
+					break;
+				}
+			}
+			if(ite2 != m_vecFileIoInfo.end())
+			{
+				ite2->fileIoSize += ite->fileIoSize;
+				ite2->fileIoTime += ite->fileIoTime;
+			}
+			else
+			{
+				fileIoInfo fileInfo;
+				fileInfo.fileIoSize = ite->fileIoSize;
+				fileInfo.fileIoTime = ite->fileIoTime;
+				fileInfo.fileName = mapIte->second;
+				fileInfo.fileObjectPtr = ite->fileObjectPtr;
+				m_vecFileIoInfo.push_back(fileInfo);
+			}
+		}
 		fprintf(fp, "DiskIo Summary：fileCount=%d\r\n",m_vecFileIoInfo.size());
 		fprintf(fp, "Size           IoTime           FileName\r\n");
-
 		for(std::vector<fileIoInfo>::iterator ite = m_vecFileIoInfo.begin(); ite != m_vecFileIoInfo.end(); ++ite)
 		{
 			fwprintf(fp, L"%-12I64u  ,%-12I64u    ,%s\r\n",ite->fileIoSize, ite->fileIoTime,ite->fileName.c_str());
@@ -674,39 +662,44 @@ void CConsumer::OutputResult()
 
 	fprintf(fp, "\r\n---------------------------------------还是华丽的分割线--------------------------------------------------\r\n\r\n");
 
-// 	for(VEC_HARDFAULTS_ITE ite = m_vecHardFaults.begin(); ite != m_vecHardFaults.end(); ++ite)
-// 	{
-// 		MAP_FILEOBJ_ITE mapIte = m_mapFileObjectToFileName.begin();
-// 		for(; mapIte != m_mapFileObjectToFileName.end() ; ++mapIte)
-// 		{
-// 			if(mapIte->first == ite->fileObj)
-// 				break;
-// 		}
-// 		if(mapIte == m_mapFileObjectToFileName.end())
-// 		{
-// 			wprintf(L"Hard Faults Not Found File\r\n");
-// 			continue;
-// 		}
-// 		MAP_FILEFAULTS_ITE iteFaults;
-// 		if((iteFaults =  m_vecFileFaults.find(mapIte->first)) != m_vecFileFaults.end())
-// 		{
-// 			iteFaults->second.faultCount += 1;
-// 			iteFaults->second.readSize += ite->byteCount;
-// 			iteFaults->second.fileName = mapIte->second;
-// 			iteFaults->second.vec_Fault.push_back(*ite);
-// 		}
-// 		else
-// 		{
-// 			CFileHardFaults fileHardFaults;
-// 			fileHardFaults.faultCount = 1;
-// 			fileHardFaults.readSize = ite->byteCount;
-// 			fileHardFaults.fileName = mapIte->second;
-// 			fileHardFaults.vec_Fault.push_back(*ite);
-// 			m_vecFileFaults[mapIte->first] = fileHardFaults;
-// 		}
-// 
-// 
-// 	}
+ 	for(VEC_HARDFAULTS_ITE ite = m_vecHardFaults.begin(); ite != m_vecHardFaults.end(); ++ite)
+ 	{
+ 		MAP_FILEOBJ_ITE mapIte = m_mapFileObjectToFileName.begin();
+ 		for(; mapIte != m_mapFileObjectToFileName.end() ; ++mapIte)
+ 		{
+ 			if(mapIte->first == ite->fileObj)
+ 				break;
+ 		}
+ 		if(mapIte == m_mapFileObjectToFileName.end())
+ 		{
+ 			wprintf(L"Hard Faults Not Found File\r\n");
+ 			continue;
+ 		}
+ 		VEC_FILEFAULTS_ITE iteFaults;
+		for(iteFaults = m_vecFileFaults.begin(); iteFaults != m_vecFileFaults.end(); ++iteFaults)
+		{
+			if(wcscmp(iteFaults->fileName.c_str(), mapIte->second.c_str()) == 0)
+				break;
+		}
+ 		if(iteFaults != m_vecFileFaults.end())
+ 		{
+ 			iteFaults->faultCount += 1;
+ 			iteFaults->readSize += ite->byteCount;
+ 			iteFaults->fileName = mapIte->second;
+ 			iteFaults->vec_Fault.push_back(*ite);
+ 		}
+ 		else
+ 		{
+ 			CFileHardFaults fileHardFaults;
+ 			fileHardFaults.faultCount = 1;
+ 			fileHardFaults.readSize = ite->byteCount;
+ 			fileHardFaults.fileName = mapIte->second;
+ 			fileHardFaults.vec_Fault.push_back(*ite);
+ 			m_vecFileFaults.push_back(fileHardFaults);
+ 		}
+ 
+ 
+ 	}
 
 	fprintf(fp,"Count        Size        Name\r\n");
 
